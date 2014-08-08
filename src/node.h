@@ -42,7 +42,7 @@ typedef struct node_status_t {
 } node_status_t;
 
 typedef enum mtu_probe_states {
-  start = 0,
+  start = 0, // because all node_t values are initialized with 0
   probing,
   probe_wait,
   pinging,
@@ -98,6 +98,7 @@ typedef struct node_t {
 	length_t maxmtu;                        /* Probed maximum MTU */
 	int mtuprobes;                          /* Number of probes */
 	timeout_t mtutimeout;                   /* Probe event */
+	timeout_t keepalivetimeout;             /* Keepalive timer */
 	mtu_probe_states mtu_probe_state;       /* Current state of the state machine controlling the mtu probing */
 	struct timeval probe_time;              /* Time the last probe was sent or received */
 	int probe_counter;                      /* Number of probes received since last burst was sent */

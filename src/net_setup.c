@@ -42,6 +42,7 @@
 #include "subnet.h"
 #include "utils.h"
 #include "xalloc.h"
+#include <lzo/lzoconf.h>
 
 char *myport;
 static io_t device_io;
@@ -1082,8 +1083,6 @@ bool setup_network(void) {
 	if(get_config_int(lookup_config(config_tree, "KeepaliveInterval"), &keepaliveinterval)) {
 		if (keepaliveinterval < 1) {
 			keepaliveinterval = 1;
-		} else if (keepaliveinterval > pinginterval) {
-			keepaliveinterval = pinginterval;
 		}
 	} else
 		keepaliveinterval = 1;

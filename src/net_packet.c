@@ -74,6 +74,37 @@ bool localdiscovery = true;
 
 */
 
+static void send_keepalive(void *data) {
+	node_t *n = data;
+
+	timeout_del(&n->keepalivetimeout); // being extra safe and making sure to not add the timer twice
+
+	switch(n->mtu_probe_state)
+	{
+		case start:
+		case probing:
+		case probe_wait:
+		default:
+			break;
+			
+		case pinging:
+		case ping_wait:
+		case ping_timeout:
+			{
+				vpn_packet_t packet;
+				int len = 64;
+				create_mtu_probe(&packet, &len);
+
+				logger(DEBUG_TRAFFIC, LOG_INFO, "Sending keepalive packet to %s (%s)", n->name, n->hostname);
+
+				send_udppacket(n, &packet);
+				
+				timeout_add(&n->keepalivetimeout, send_keepalive, n, &(struct timeval){keepaliveinterval, 0});
+			}
+			break;
+	}
+}
+
 static void send_mtu_probe_burst(node_t *n) {
   logger(DEBUG_TRAFFIC, LOG_INFO, "Trying to start MTU discovery to %s (%s)", n->name, n->hostname);
   n->probe_counter = 0;
@@ -149,6 +180,7 @@ static void send_mtu_probe_handler(void *data)
 				logger(DEBUG_TRAFFIC, LOG_INFO, "No response to MTU probes from %s (%s)", n->name, n->hostname);
 
 				n->mtu_probe_state = pinging;
+				send_keepalive(n);
 			}
 			else if (n->mtuprobes == 30 || (n->mtuprobes < 30 && n->minmtu >= n->maxmtu))
 			{
@@ -164,6 +196,7 @@ static void send_mtu_probe_handler(void *data)
 				logger(DEBUG_TRAFFIC, LOG_INFO, "Fixing MTU of %s (%s) to %d after %d probes", n->name, n->hostname, n->mtu, n->mtuprobes);
 
 				n->mtu_probe_state = pinging;
+				send_keepalive(n);
 			}
 			else
 			{
@@ -213,6 +246,8 @@ static void send_mtu_probe_handler(void *data)
 }
 
 void create_mtu_probe(vpn_packet_t *packet, int *len) {
+	if (!len || !packet)
+		return;
 	if (*len < 64)
 	  *len = 64;
 	memset(packet->data, 0, 14);
@@ -226,8 +261,15 @@ void send_mtu_probe(node_t *n) {
 }
 
 static void mtu_probe_h(node_t *n, vpn_packet_t *packet, length_t len) {
-	if(!packet->data[0]) {
-		logger(DEBUG_TRAFFIC, LOG_INFO, "Got MTU probe request %d from %s (%s)", packet->len, n->name, n->hostname);
+	if(packet->data[0] == 0) {
+		if (len == 64)
+		{
+			logger(DEBUG_TRAFFIC, LOG_INFO, "Got keepalive packet from %s (%s)", n->name, n->hostname);
+		}
+		else
+		{
+			logger(DEBUG_TRAFFIC, LOG_INFO, "Got MTU probe request %d from %s (%s)", packet->len, n->name, n->hostname);
+		}
 
 		/* It's a probe request, send back a reply */
 
